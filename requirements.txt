@@ -1,0 +1,132 @@
+import streamlit as st
+from utils.database import init_db, login_user, register_user
+from pages import admin, company, customer
+
+st.set_page_config(
+    page_title="ComplaintSense TZ",
+    page_icon="🧠",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ── Custom CSS ──
+st.markdown("""
+<style>
+    [data-testid="stSidebar"] {background: #1e3a5f;}
+    [data-testid="stSidebar"] * {color: white !important;}
+    [data-testid="stSidebar"] .stButton button {
+        background: #2563eb; color: white;
+        border-radius: 8px; border: none; width: 100%;
+    }
+    .metric-card {background: white; padding: 16px; border-radius: 10px;
+                  box-shadow: 0 2px 8px rgba(0,0,0,0.08);}
+    h2 {color: #1e3a5f;}
+</style>
+""", unsafe_allow_html=True)
+
+# ── Init ──
+init_db()
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+if 'user' not in st.session_state:
+    st.session_state.user = None
+
+def logout():
+    st.session_state.logged_in = False
+    st.session_state.user = None
+    st.rerun()
+
+def show_auth():
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("""
+        <div style='text-align:center; padding: 30px 0 10px 0'>
+            <h1 style='color:#1e3a5f; font-size:2.5rem'>🧠 ComplaintSense</h1>
+            <p style='color:#666; font-size:1rem'>Tanzania Customer Complaint Intelligence Platform</p>
+            <p style='color:#888; font-size:0.85rem'>
+                Institutions: NMB Bank · CRDB Bank · Vodacom M-Pesa · Tigo Pesa
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        st.divider()
+
+        tab_login, tab_register = st.tabs(["🔐 Login", "📝 Register"])
+
+        with tab_login:
+            email = st.text_input("Email Address", placeholder="you@example.com", key="li_email")
+            password = st.text_input("Password", type="password", key="li_pass")
+
+            if st.button("Login →", use_container_width=True, type="primary"):
+                if not email or not password:
+                    st.error("Please fill in all fields")
+                else:
+                    success, user = login_user(email, password)
+                    if success:
+                        st.session_state.logged_in = True
+                        st.session_state.user = user
+                        st.rerun()
+                    else:
+                        st.error("❌ Invalid email or password")
+
+            st.markdown("---")
+            st.markdown("**Demo Accounts:**")
+            st.code("Admin:    admin@complaintsense.com / admin123\n"
+                    "Company:  company@vodacom.com / company123\n"
+                    "Customer: customer@gmail.com / customer123")
+
+        with tab_register:
+            name = st.text_input("Full Name", key="reg_name")
+            email_r = st.text_input("Email Address", key="reg_email")
+            pass_r = st.text_input("Password", type="password", key="reg_pass")
+            role = st.selectbox("Account Type", ["customer", "company", "admin"],
+                                format_func=lambda x: {
+                                    "customer": "👤 Customer (Individual)",
+                                    "company": "🏢 Company / Institution",
+                                    "admin": "⚙️ Administrator"
+                                }[x])
+
+            if st.button("Create Account →", use_container_width=True, type="primary"):
+                if not name or not email_r or not pass_r:
+                    st.error("Please fill in all fields")
+                else:
+                    ok, msg = register_user(name, email_r, pass_r, role)
+                    if ok:
+                        st.success(f"✅ {msg} — Please login.")
+                    else:
+                        st.error(f"❌ {msg}")
+
+def show_app():
+    user = st.session_state.user
+    role_icons = {'admin': '⚙️ Admin', 'company': '🏢 Company', 'customer': '👤 Customer'}
+
+    with st.sidebar:
+        st.markdown(f"### 🧠 ComplaintSense TZ")
+        st.markdown("---")
+        st.markdown(f"**{user.name}**")
+        st.markdown(f"Role: `{role_icons.get(user.role, user.role)}`")
+        st.markdown("---")
+        st.markdown("**Navigation**")
+        if user.role == 'admin':
+            st.markdown("📊 Full Dashboard\n\n📋 All Complaints\n\n📥 Export Data")
+        elif user.role == 'company':
+            st.markdown("📊 My Analytics\n\n📂 Upload CSV\n\n📥 Export Data")
+        else:
+            st.markdown("✍️ Submit Complaint\n\n📋 My History")
+        st.markdown("---")
+        st.markdown("*Powered by TextBlob NLP*")
+        st.markdown("*BSc DSAI — Ardhi University*")
+        st.markdown("---")
+        if st.button("🚪 Logout", use_container_width=True):
+            logout()
+
+    if user.role == 'admin':
+        admin.show()
+    elif user.role == 'company':
+        company.show(user)
+    else:
+        customer.show(user)
+
+if not st.session_state.logged_in:
+    show_auth()
+else:
+    show_app()
